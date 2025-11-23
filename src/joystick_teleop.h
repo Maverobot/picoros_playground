@@ -94,10 +94,17 @@ static inline float jt_normalize_axis(int raw)
 static inline void jt_axes_to_cmd(float norm_x, float norm_y, float * linear_x, float * angular_z)
 {
   // Convention:
-  //  - Y positive (pushed forward) -> forward linear.x
-  //  - X positive (right)          -> negative angular.z (turn right)
-  *linear_x  = norm_y * MAX_LINEAR_VEL_MPS;
-  *angular_z = -norm_x * MAX_ANGULAR_VEL_RAD;
+  //  - X positive (pushed forward) -> forward linear.x
+  //  - Y positive (left)           -> positive angular.z (turn left)
+  *linear_x  = norm_x * MAX_LINEAR_VEL_MPS;
+
+  if (norm_x < 0.0f)
+  {
+    // When going backward, invert turning direction for more intuitive control
+    norm_y = -norm_y;
+  }
+
+  *angular_z = -norm_y * MAX_ANGULAR_VEL_RAD;
 }
 
 // --- Hardware init (mirrors embedded_mobile_base sequence) -----------------
