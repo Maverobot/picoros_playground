@@ -4,11 +4,13 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>  // for gettimeofday
 #include "esp_log.h"
 #include "led_strip_esp32.h"
 #include "nvs_flash.h"
 #include "picoros.h"
 #include "picoserdes.h"
+#include "wifi_time.h"
 
 // Communication mode
 #define MODE "client"
@@ -234,6 +236,8 @@ void joint_state_callback(uint8_t * rx_data, size_t data_len)
 
 static void publish_joint_state(void * pvParameters)
 {
+  (void)pvParameters;
+
   const double efforts[] = {0.5, 0, 0.2};
   const char * const names[] = {
     "wbot_wheel_left_joint", "wbot_wheel_right_joint", "arbitrary_made_up_joint"};
@@ -244,14 +248,15 @@ static void publish_joint_state(void * pvParameters)
     double velocities[] = {cmd_vel[0], cmd_vel[1], cmd_vel[2]};
     taskEXIT_CRITICAL(&my_spinlock);  // End of the critical section
 
-    z_clock_t now = z_clock_now();
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
     ros_JointState joint_state = {
       .header =
         {
           .stamp =
             {
-              .sec = (int32_t)now.tv_sec,
-              .nanosec = (uint32_t)now.tv_nsec,
+              .sec = (int32_t)tv.tv_sec,
+              .nanosec = (uint32_t)tv.tv_usec * 1000U,
             },
         },
       .name = {.data = (char **)names, .n_elements = 3},
@@ -300,6 +305,11 @@ void embedded_mobile_base()
 
   set_led_color(0, 0, 255);  // Solid blue to signal NVS init complete
   vTaskDelay(pdMS_TO_TICKS(1000));
+
+  // Obtain correct time via WiFi before starting Pico-ROS
+  set_led_color(0, 0, 255);  // Keep blue while getting time
+  obtain_time_via_wifi();
+
   set_led_color(255, 0, 0);  // Switch to solid red to signal start of RMW init
 
   // Initialize Pico ROS interface

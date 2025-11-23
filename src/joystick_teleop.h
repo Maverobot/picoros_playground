@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>  // for gettimeofday
 
 #include "esp_log.h"
 #include "driver/adc.h"
@@ -15,6 +16,7 @@
 #include "picoros.h"
 #include "picoserdes.h"
 #include "my_ros_message_types.h"
+#include "wifi_time.h"
 
 namespace joystick_teleop
 {
@@ -118,6 +120,11 @@ static void jt_hw_init()
 
   set_led_color(0, 0, 255);  // Solid blue to signal NVS init complete
   vTaskDelay(pdMS_TO_TICKS(1000));
+
+  // Obtain correct time via WiFi before starting Pico-ROS
+  set_led_color(0, 0, 255);  // Keep blue while getting time
+  obtain_time_via_wifi();
+
   set_led_color(255, 0, 0);  // Solid red to signal start of RMW init
 
   // ADC init
@@ -178,6 +185,8 @@ static void jt_ros_init()
 
 static void jt_publish_cmd_vel_task(void * pvParameters)
 {
+  (void)pvParameters;
+
   bool last_pressed = false;
   bool enabled      = true;
 
@@ -224,12 +233,13 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
       continue;
     }
 
+    // Build TwistStamped message using system time from SNTP
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
 
-    // Build TwistStamped message (explicit field assignment, like embedded_mobile_base)
-    z_clock_t now = z_clock_now();
     ros_TwistStamped cmd = {};
-    cmd.header.stamp.sec     = (int32_t)now.tv_sec;
-    cmd.header.stamp.nanosec = (uint32_t)now.tv_nsec;
+    cmd.header.stamp.sec     = (int32_t)tv.tv_sec;
+    cmd.header.stamp.nanosec = (uint32_t)tv.tv_usec * 1000U;
     // frame_id is an rstring (char*), see my_ros_message_types.h
     cmd.header.frame_id = jt_frame_id_buf;
 
