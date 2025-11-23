@@ -3,3 +3,4 @@
 build/
 CMakeLists.txt
 src/CMakeLists.txt
+.aider*
