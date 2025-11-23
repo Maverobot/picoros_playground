@@ -8,10 +8,12 @@
 #include "flashing_leds.h"
 #include "embedded_mobile_base.h"
 #include "joystick_leds.h"
+#include "joystick_teleop.h"
 
 extern "C" void app_main(void)
 {
   // embedded_mobile_base();
   // flashing_leds();
-  joystick_leds();
+  // joystick_leds();
+  joystick_teleop::joystick_teleop();
 }
