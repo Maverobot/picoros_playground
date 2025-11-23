@@ -7,9 +7,11 @@
 #include "nvs_flash.h"
 #include "flashing_leds.h"
 #include "embedded_mobile_base.h"
+#include "joystick_leds.h"
 
 extern "C" void app_main(void)
 {
-  embedded_mobile_base();
+  // embedded_mobile_base();
   // flashing_leds();
+  joystick_leds();
 }
