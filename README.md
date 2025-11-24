@@ -1,66 +1,41 @@
-# Mobile Base Example
+# PicoROS Playground
 
-This has been extracted from the ROSCon 2025 Workshop [embedded-mobile-base](https://github.com/ros-controls/roscon2025_control_workshop/tree/master/embedded-mobile-base) repository.
+This repository is a small playground for experimenting with the [PicoROS](https://github.com/Pico-ROS/Pico-ROS-software) framework on an ESP32-S3 microcontroller.
 
-### Prerequisite
-1. In VS Code use the `Open Folder` option to navigate to the `embedded-mobile-base` directory
-1. Allow PlatformIO to download source based dependencies into the folder `.pio/libdeps/esp32-s3-devkitc-1/zenoh-pico` (this step happens automatically after you open the folder with the PlatformIO extension enabled)
-1. Setup the 99-platformio-udev.rules as per the [instructions](https://docs.platformio.org/en/latest/core/installation/udev-rules.html#platformio-udev-rules)
+The project structure was initially extracted from the ROSCon 2025 Workshop
+[embedded-mobile-base](https://github.com/ros-controls/roscon2025_control_workshop/tree/master/embedded-mobile-base)
+repository, and then adapted to host multiple small examples (starting with a joystick teleop node).
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/system/99-platformio-udev.rules | sudo tee /etc/udev/rules.d/99-platformio-udev.rules
-sudo service udev restart
-```
+## What this project provides
 
-## Running the Example
+- A PlatformIO-based ESP32-S3 project using:
+  - [PicoROS](https://github.com/ros-controls/picoros) as the ROS 2 client library.
+  - [Zenoh](https://zenoh.io/) via `rmw_zenoh_cpp` as the ROS 2 middleware on the host.
+- An example `joystick_teleop` node that:
+  - Reads a joystick via ADC and a button via GPIO.
+  - Publishes `geometry_msgs/msg/TwistStamped` messages on the `/cmd_vel` topic.
+  - Uses WiFi + SNTP to obtain a proper wall-clock time on the ESP32.
+- Reusable patterns taken from the `embedded_mobile_base` example:
+  - LED initialization and status indication.
+  - PicoROS node and publisher setup.
+  - Serial link configuration between ESP32 and Zenoh router.
 
-1. Start and open an interactive shell to the Workshop container
-```bash
-docker exec -it ros2_control_roscon25 bash
-```
+This is intended as a sandbox to try out, hack on, and extend PicoROS-based firmware, not a polished product.
 
-2. Start the Zenoh router
-```bash
-ZENOH_CONFIG_OVERRIDE='listen/endpoints=["tcp/[::]:7447","serial//dev/ttyACM0#baudrate=460800"]' ros2 run rmw_zenoh_cpp rmw_zenohd
-```
+## Repository layout (relevant parts)
 
-> [!NOTE]
-> The port `/dev/ttyACM0` in the above `ZENOH_CONFIG_OVERRIDE` variable should correspond to the USB connected to the port COMM/UART on the ESP32 board.
+- `src/main.cpp`
+  Entry point that selects which example to run (currently `joystick_teleop`).
 
-You should see something like this in the output
-```
-2025-09-07T19:21:09.557554Z  INFO ThreadId(02) zenoh::net::runtime: Using ZID: a0a93e6969d215a11964e6a3bde24ff3
-2025-09-07T19:21:09.558261Z  INFO ThreadId(02) zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/[fe80::4a26:638c:e6fa:d033]:7447
-2025-09-07T19:21:09.558266Z  INFO ThreadId(02) zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/192.168.1.40:7447
-2025-09-07T19:21:09.558267Z  INFO ThreadId(02) zenoh::net::runtime::orchestrator: Zenoh can be reached at: serial//dev/ttyACM0
-Started Zenoh router with id a0a93e6969d215a11964e6a3bde24ff3
-```
+- `src/joystick_teleop.h`
+  Joystick teleoperation example:
+  - Initializes LEDs, NVS, WiFi, and SNTP.
+  - Connects to a Zenoh router over serial using PicoROS.
+  - Publishes `/cmd_vel` commands based on joystick input.
 
-3. Follow the `Prerequisite` above and build the project with `Ctrl+Alt+B` then download the code to the device
+- `src/wifi_time.h`
+  Helper utilities for:
+  - Connecting to a WiFi network as a station.
+  - Initializing SNTP and waiting until the system time is set.
 
-4. Once the program starts on the ESP32 the
-- LED will go solid blue to signal NVS init complete
-- LED will go solid red to signal start of RMW init
-- LED will switch to color output based on latest driving command
-
-5. On the host open a second interactive terminal to the Workshop container and open rviz.
-```bash
-docker exec -it ros2_control_roscon25 bash
-ros2 launch wbot_bringup wbot.launch.xml mock_hardware:=false
-```
-
-6. On the host open a third interactive terminal to the Workshop container and attempt to teleoperate the robot.
-This will publish a Twist message on the `/cmd_vel` topic which is the same value the `DiffDriveController` is listening to for commands.
-```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true
-```
-
-7. (Optional) Run Plugjuggler UI to monitor the system and plot performance.
-You can load the pre-configured layout included in [wbot_bringup](/zenoh_host/wbot_bringup/wbot_plotjuggler.xml)
-```bash
-ros2 run plotjuggler_plotjuggler
-```
-
-<img src="../docs/wb3_teleop.gif">
-
-8. The ESP32's RGB LED will now change colors according to the latest driving command.
+Other source and configuration files largely follow the structure of the original `embedded-mobile-base` workshop project.
