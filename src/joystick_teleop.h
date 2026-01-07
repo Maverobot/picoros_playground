@@ -225,13 +225,6 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
 
       // Convert to command
       jt_axes_to_cmd(norm_x, norm_y, &linear_x, &angular_z);
-
-      if (linear_x == 0.0f && angular_z == 0.0f)
-      {
-        // No movement command - small delay to avoid busy loop
-        vTaskDelay(pdMS_TO_TICKS(20));
-        continue;
-      }
     }
     else
     {
