@@ -28,17 +28,44 @@ This is intended as a sandbox to try out, hack on, and extend PicoROS-based firm
   Entry point that selects which example to run (currently `joystick_teleop`).
 
 - `src/joystick_teleop.h`
-  ![Alt Text](src/joystick_teleop.jpg) 
+  ![Alt Text](src/joystick_teleop.jpg)
   Joystick teleoperation example:
   - Initializes LEDs, NVS, WiFi, and SNTP.
   - Connects to a Zenoh router over serial using PicoROS.
   - Publishes `/cmd_vel` commands based on joystick input.
   - Publishes `/grasping` commands based on button input.
 
+- `src/embedded_mobile_base.h`
+  Original mobile base example from the ROSCon workshop:
+  - Subscribes to `/picoros/joint_commands` for velocity commands.
+  - Publishes `/picoros/joint_states` with position, velocity, and effort feedback.
+  - Calculates desired joint positions from velocity commands.
+  - Updates LED color based on robot motion (forward, turning, arc movements).
+
+- `src/flashing_leds.h`
+  Simple LED flashing example for testing the LED strip:
+  - Cycles through blue, red, and green colors at 1 second intervals.
+
+- `src/joystick_leds.h`
+  Example that maps joystick axis positions to LED colors:
+  - X axis positive → red intensity.
+  - Y axis positive → green intensity.
+  - Y axis negative → blue intensity.
+  - Button press toggles LED control on/off.
+
 - `src/wifi_time.h`
   Helper utilities for:
   - Connecting to a WiFi network as a station.
   - Initializing SNTP and waiting until the system time is set.
+
+- `include/my_ros_message_types.h`
+  Generated ROS message type definitions for use with PicoROS serialization.
+
+- `platformio.ini`
+  PlatformIO project configuration for ESP32-S3.
+
+- `sdkconfig.esp32-s3-devkitc-1`
+  ESP-IDF SDK configuration for the ESP32-S3-DevKitC-1 board.
 
 Other source and configuration files largely follow the structure of the original `embedded-mobile-base` workshop project.
 
