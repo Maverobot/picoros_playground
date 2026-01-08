@@ -41,3 +41,46 @@ This is intended as a sandbox to try out, hack on, and extend PicoROS-based firm
   - Initializing SNTP and waiting until the system time is set.
 
 Other source and configuration files largely follow the structure of the original `embedded-mobile-base` workshop project.
+
+## Joystick Teleop Input Mapping
+
+### Joystick Axes (X and Y)
+
+1. **Hardware**: Two analog axes connected to GPIO4 (VRX) and GPIO5 (VRY), read via ADC1 channels 3 and 4.
+
+2. **Normalization**: Raw ADC values (0–4095) are converted to a float range of -1.0 to +1.0:
+   - ADC 0 → -1.0
+   - ADC ~2048 → 0.0
+   - ADC 4095 → +1.0
+   - A dead zone of ±0.1 around center returns 0.0 to prevent jitter.
+
+3. **Velocity mapping**:
+   - **X axis (VRX)**: Controls `linear.x` (forward/backward). Pushing forward → positive velocity.
+   - **Y axis (VRY)**: Controls `linear.y` (left/right). The sign is inverted, so pushing left → positive velocity.
+   - Both are scaled by `MAX_LINEAR_VEL_MPS` (0.5 m/s).
+
+### SW Button (GPIO10)
+
+The button has **two behaviors** based on press duration:
+
+#### Short Press (< 1 second)
+- Increments a `switch_counter` on button release.
+- Controls Z-axis motion based on `counter % 4`:
+  - `counter % 2 == 0` → **STOP** (linear.z = 0)
+  - `counter % 4 == 1` → **UP** (linear.z = 0.2 m/s)
+  - `counter % 4 == 3` → **DOWN** (linear.z = -0.2 m/s)
+
+So the sequence is: STOP → UP → STOP → DOWN → STOP → UP → ...
+
+#### Long Press (≥ 1 second)
+- Toggles the `grasping` boolean.
+- The grasping state is published on the `/grasping` topic as a `std_msgs/Bool`.
+
+### Summary Table
+
+| Input | Action | ROS Output |
+|-------|--------|------------|
+| Joystick X | Forward/back velocity | `cmd_vel.twist.linear.x` |
+| Joystick Y | Left/right velocity | `cmd_vel.twist.linear.y` |
+| Short press SW | Cycle Z motion (stop→up→stop→down) | `cmd_vel.twist.linear.z` |
+| Long press SW | Toggle grasping mode | `/grasping` Bool |
