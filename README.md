@@ -28,10 +28,12 @@ This is intended as a sandbox to try out, hack on, and extend PicoROS-based firm
   Entry point that selects which example to run (currently `joystick_teleop`).
 
 - `src/joystick_teleop.h`
+  ![Alt Text](src/joystick_teleop.jpg) 
   Joystick teleoperation example:
   - Initializes LEDs, NVS, WiFi, and SNTP.
   - Connects to a Zenoh router over serial using PicoROS.
   - Publishes `/cmd_vel` commands based on joystick input.
+  - Publishes `/grasping` commands based on button input.
 
 - `src/wifi_time.h`
   Helper utilities for:

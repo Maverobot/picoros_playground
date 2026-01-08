@@ -44,6 +44,9 @@ static const gpio_num_t JOY_SW_GPIO  = (gpio_num_t)10;
 // Tune these for your robot
 #define MAX_LINEAR_VEL_MPS   0.5f     // forward/backward, m/s
 
+// Long press threshold in milliseconds
+#define LONG_PRESS_THRESHOLD_MS 1000
+
 // --- Pico-ROS node and publisher (pattern copied from embedded_mobile_base) ---
 
 // Node (visible on host with `ros2 node list`)
@@ -61,8 +64,19 @@ picoros_publisher_t jt_pub_cmd_vel = {
     },
 };
 
+// Publisher for Bool on /grasping
+picoros_publisher_t jt_pub_grasping = {
+  .topic =
+    {
+      .name = "grasping",                        // ROS topic: /grasping
+      .type = ROSTYPE_NAME(ros_Bool),
+      .rihs_hash = ROSTYPE_HASH(ros_Bool),
+    },
+};
+
 // Buffer for serialization
 static uint8_t jt_pub_buf[256];
+static uint8_t jt_pub_bool_buf[64];
 
 // Static frame_id buffer for TwistStamped header
 static char jt_frame_id_buf[] = "base_link";
@@ -176,6 +190,9 @@ static void jt_ros_init()
   ESP_LOGI(jt_node.name, "Declaring publisher on [%s]\n", jt_pub_cmd_vel.topic.name);
   picoros_publisher_declare(&jt_node, &jt_pub_cmd_vel);
 
+  ESP_LOGI(jt_node.name, "Declaring publisher on [%s]\n", jt_pub_grasping.topic.name);
+  picoros_publisher_declare(&jt_node, &jt_pub_grasping);
+
   // After ROS is fully up, set LED to green to indicate ready for teleop
   set_led_color(0, 255, 0);
 }
@@ -205,6 +222,11 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
 
   bool last_pressed   = false;
   int  switch_counter = 0;
+  bool grasping       = false;
+
+  // For long press detection
+  uint32_t press_start_ms      = 0;
+  bool     long_press_detected = false;
 
   while (true)
   {
@@ -212,13 +234,36 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
     const int raw_x = adc1_get_raw(JOY_VRX_CHANNEL);  // 0–4095
     const int raw_y = adc1_get_raw(JOY_VRY_CHANNEL);  // 0–4095
 
-    // Button toggles enable/disable
+    // Button state (active low)
     const bool pressed = (gpio_get_level(JOY_SW_GPIO) == 0);
-    if (pressed && pressed != last_pressed)
+    const uint32_t now_ms = jt_get_milliseconds();
+
+    // Detect press start
+    if (pressed && !last_pressed)
+    {
+      press_start_ms = now_ms;
+      long_press_detected = false;
+    }
+
+    // Check for long press while button is held
+    if (pressed && !long_press_detected)
+    {
+      if ((now_ms - press_start_ms) >= LONG_PRESS_THRESHOLD_MS)
+      {
+        // Long press detected: toggle grasping
+        grasping = !grasping;
+        long_press_detected = true;
+        ESP_LOGI(TAG, "Long press detected, grasping toggled to: %s", grasping ? "true" : "false");
+      }
+    }
+
+    // Short press: increment switch_counter on release (only if not a long press)
+    if (!pressed && last_pressed && !long_press_detected)
     {
       switch_counter++;
       ESP_LOGI(TAG, "Joystick teleop z axis counter: %d", switch_counter);
     }
+
     last_pressed = pressed;
 
     float norm_x   = 0.0f;
@@ -273,6 +318,19 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
     else
     {
       ESP_LOGI(jt_node.name, "TwistStamped message serialization error.");
+    }
+
+    // Publish grasping state as Bool message
+    ros_Bool grasp_msg = grasping;
+
+    size_t grasp_len = ps_serialize(jt_pub_bool_buf, &grasp_msg, sizeof(jt_pub_bool_buf));
+    if (grasp_len > 0)
+    {
+      picoros_publish(&jt_pub_grasping, jt_pub_bool_buf, grasp_len);
+    }
+    else
+    {
+      ESP_LOGI(jt_node.name, "Bool message serialization error.");
     }
 
     // Teleop rate (e.g. 50 Hz)
