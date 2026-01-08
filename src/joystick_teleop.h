@@ -180,14 +180,31 @@ static void jt_ros_init()
   set_led_color(0, 255, 0);
 }
 
+enum class ZAxisMotion
+{
+  DOWN,
+  STOP,
+  UP
+};
+
+static ZAxisMotion z_axis_motion(int counter) {
+  if (counter % 2 == 0) {
+    return ZAxisMotion::STOP;
+  } else if (counter % 4 == 1) {
+    return ZAxisMotion::UP;
+  } else {
+    return ZAxisMotion::DOWN;
+  }
+}
+
 // --- Main publishing task (similar to publish_joint_state) -----------------
 
 static void jt_publish_cmd_vel_task(void * pvParameters)
 {
   (void)pvParameters;
 
-  bool last_pressed = false;
-  bool enabled      = true;
+  bool last_pressed   = false;
+  int  switch_counter = 0;
 
   while (true)
   {
@@ -199,31 +216,37 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
     const bool pressed = (gpio_get_level(JOY_SW_GPIO) == 0);
     if (pressed && pressed != last_pressed)
     {
-      enabled = !enabled;
-      ESP_LOGI(TAG, "Joystick teleop %s", enabled ? "ENABLED" : "DISABLED");
+      switch_counter++;
+      ESP_LOGI(TAG, "Joystick teleop z axis counter: %d", switch_counter);
     }
     last_pressed = pressed;
 
-    float norm_x    = 0.0f;
-    float norm_y    = 0.0f;
-    float linear_x  = 0.0f;
+    float norm_x   = 0.0f;
+    float norm_y   = 0.0f;
+    float linear_x = 0.0f;
     float linear_y = 0.0f;
+    float linear_z = 0.0f;
 
-    if (enabled)
-    {
-      // Normalize joystick to [-1,1]
-      norm_x = jt_normalize_axis(raw_x);
-      norm_y = jt_normalize_axis(raw_y);
+    // Handle z axis motion based on button presses
+    ZAxisMotion motion = z_axis_motion(switch_counter);
+    switch (motion) {
+      case ZAxisMotion::UP:
+        linear_z = 0.2f;  // Move up at 0.2 m/s
+        break;
+      case ZAxisMotion::DOWN:
+        linear_z = -0.2f; // Move down at 0.2 m/s
+        break;
+      case ZAxisMotion::STOP:
+        linear_z = 0.0f;  // Stop vertical motion
+        break;
+    }
 
-      // Convert to command
-      jt_axes_to_cmd(norm_x, norm_y, &linear_x, &linear_y);
-    }
-    else
-    {
-      // Disabled -> Don't move
-      vTaskDelay(pdMS_TO_TICKS(20));
-      continue;
-    }
+    // Normalize joystick to [-1,1]
+    norm_x = jt_normalize_axis(raw_x);
+    norm_y = jt_normalize_axis(raw_y);
+
+    // Convert to command
+    jt_axes_to_cmd(norm_x, norm_y, &linear_x, &linear_y);
 
     // Build TwistStamped message using system time from SNTP
     struct timeval tv;
@@ -237,7 +260,7 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
 
     cmd.twist.linear.x  = (double)linear_x;
     cmd.twist.linear.y  = (double)linear_y;
-    cmd.twist.linear.z  = 0.0;
+    cmd.twist.linear.z  = (double)linear_z;
     cmd.twist.angular.x = 0.0;
     cmd.twist.angular.y = 0.0;
     cmd.twist.angular.z = 0.0;
