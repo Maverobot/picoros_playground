@@ -43,7 +43,6 @@ static const gpio_num_t JOY_SW_GPIO  = (gpio_num_t)10;
 // Scaling from joystick normalized units [-1,1] to velocities
 // Tune these for your robot
 #define MAX_LINEAR_VEL_MPS   0.5f     // forward/backward, m/s
-#define MAX_ANGULAR_VEL_RAD  1.5f     // yaw, rad/s
 
 // --- Pico-ROS node and publisher (pattern copied from embedded_mobile_base) ---
 
@@ -90,21 +89,14 @@ static inline float jt_normalize_axis(int raw)
   return norm;
 }
 
-// Convert joystick axes to linear / angular velocity
-static inline void jt_axes_to_cmd(float norm_x, float norm_y, float * linear_x, float * angular_z)
+// Convert joystick axes to linear velocity
+static inline void jt_axes_to_cmd(float norm_x, float norm_y, float * linear_x, float * linear_y)
 {
   // Convention:
   //  - X positive (pushed forward) -> forward linear.x
-  //  - Y positive (left)           -> positive angular.z (turn left)
+  //  - Y positive (pushed left)    -> left linear.y
   *linear_x  = norm_x * MAX_LINEAR_VEL_MPS;
-
-  if (norm_x < 0.0f)
-  {
-    // When going backward, invert turning direction for more intuitive control
-    norm_y = -norm_y;
-  }
-
-  *angular_z = -norm_y * MAX_ANGULAR_VEL_RAD;
+  *linear_y =  -norm_y * MAX_LINEAR_VEL_MPS;
 }
 
 // --- Hardware init (mirrors embedded_mobile_base sequence) -----------------
@@ -215,7 +207,7 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
     float norm_x    = 0.0f;
     float norm_y    = 0.0f;
     float linear_x  = 0.0f;
-    float angular_z = 0.0f;
+    float linear_y = 0.0f;
 
     if (enabled)
     {
@@ -224,7 +216,7 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
       norm_y = jt_normalize_axis(raw_y);
 
       // Convert to command
-      jt_axes_to_cmd(norm_x, norm_y, &linear_x, &angular_z);
+      jt_axes_to_cmd(norm_x, norm_y, &linear_x, &linear_y);
     }
     else
     {
@@ -244,11 +236,11 @@ static void jt_publish_cmd_vel_task(void * pvParameters)
     cmd.header.frame_id = jt_frame_id_buf;
 
     cmd.twist.linear.x  = (double)linear_x;
-    cmd.twist.linear.y  = 0.0;
+    cmd.twist.linear.y  = (double)linear_y;
     cmd.twist.linear.z  = 0.0;
     cmd.twist.angular.x = 0.0;
     cmd.twist.angular.y = 0.0;
-    cmd.twist.angular.z = (double)angular_z;
+    cmd.twist.angular.z = 0.0;
 
     size_t len = ps_serialize(jt_pub_buf, &cmd, sizeof(jt_pub_buf));
     if (len > 0)
